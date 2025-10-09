@@ -1,0 +1,72 @@
+---
+# Certificate mode: selfsigned, letsencrypt, or manual
+cert_mode: letsencrypt
+
+# Domain configuration
+collaborator_domain: burp.yourdomain.com  # CHANGE THIS
+collaborator_polling_subdomain: polling
+collaborator_subdomain: "*.{{ collaborator_domain }}"
+
+# Burp Collaborator configuration
+burp_user: burp
+burp_group: burp
+burp_install_dir: /opt/burp
+burp_jar_url: "https://portswigger.net/burp/releases/download?product=pro&version=2025.8.7&type=Jar"
+burp_jar_name: burpsuite_pro.jar
+burp_config_file: "{{ burp_install_dir }}/collaborator.config"
+burp_log_dir: /var/log/burp
+
+# Burp listening ports (internal - all unprivileged)
+# Event capture ports (for interactions from target apps)
+burp_http_port: 8080
+burp_https_port: 8443
+burp_dns_port: 5353
+burp_smtp_port: 2525
+burp_smtps_port: 5587
+
+# Polling ports (for Burp Suite client to check for interactions)
+burp_polling_http_port: 9090
+burp_polling_https_port: 9443
+
+# Metrics endpoint (Change this to something unique if you want)
+burp_metrics_path: "Bx4cdNaLiCzYl5xC"
+burp_metrics_whitelist:
+  - "127.0.0.1/32"
+
+# Public facing ports (nginx)
+public_http_port: 80
+public_https_port: 443
+
+# SSL/TLS certificate configuration
+ssl_cert_dir: /etc/ssl/burp
+ssl_cert_file: "{{ ssl_cert_dir }}/burp-cert.pem"
+ssl_key_file: "{{ ssl_cert_dir }}/burp-key.pem"
+
+# Let's Encrypt configuration
+letsencrypt_email: your-email@example.com  # CHANGE THIS
+letsencrypt_staging: false  # Set to true for testing to avoid rate limits
+
+# Nginx configuration
+nginx_user: www-data
+nginx_worker_processes: auto
+nginx_worker_connections: 1024
+
+# Static site configuration
+static_site_dir: /var/www/burp-cover
+static_site_source: "{{ playbook_dir }}/../../static-site"
+
+# Java configuration
+java_package: openjdk-21-jre-headless
+
+# fail2ban configuration
+fail2ban_bantime: 600
+fail2ban_findtime: 600
+fail2ban_maxretry: 5
+fail2ban_ssh_maxretry: 3
+fail2ban_ssh_findtime: 300
+fail2ban_ssh_bantime: 3600
+
+# System configuration
+enable_firewall: true
+enable_port_forwarding: true
+enable_fail2ban: true

@@ -1,1 +1,8 @@
 .idea
+.terraform
+*.backup
+LICENSE.txt
+tfplan
+*.tfstate
+*.tfvars
+*.lock*

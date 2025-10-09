@@ -1,0 +1,147 @@
+---
+- name: Deploy Burp Collaborator Server (AWS)
+  hosts: aws
+  become: yes
+  gather_facts: yes
+  vars_files:
+    - ../group_vars/aws.yml
+
+  pre_tasks:
+    - name: Display deployment information
+      debug:
+        msg:
+          - "Deploying Burp Collaborator to: {{ inventory_hostname }}"
+          - "Domain: {{ collaborator_domain }}"
+          - "Certificate Mode: {{ cert_mode }}"
+          - "Let's Encrypt Email: {{ letsencrypt_email }}"
+          - "Let's Encrypt Staging: {{ letsencrypt_staging }}"
+      tags: always
+
+    - name: Wait for system to be ready
+      wait_for_connection:
+        timeout: 300
+      tags: always
+
+    - name: Verify DNS is configured
+      command: dig +short {{ collaborator_domain }}
+      register: dns_check
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      become: no
+      tags: always
+
+    - name: Display DNS check results
+      debug:
+        msg:
+          - "DNS Resolution Check:"
+          - "{{ dns_check.stdout_lines }}"
+          - "Expected IP: {{ ansible_default_ipv4.address }}"
+      tags: always
+
+    - name: Warn if DNS not configured
+      pause:
+        prompt: |
+          WARNING: DNS may not be properly configured!
+          
+          Expected: {{ ansible_default_ipv4.address }}
+          Got: {{ dns_check.stdout }}
+          
+          Let's Encrypt requires properly configured DNS.
+          Press Enter to continue anyway, or Ctrl+C to abort.
+      when:
+        - cert_mode == "letsencrypt"
+        - dns_check.stdout != ansible_default_ipv4.address
+      tags: always
+
+  roles:
+    - role: common
+      tags: common
+
+    - role: firewall
+      tags: firewall
+      when: enable_firewall
+
+    - role: letsencrypt-certs
+      tags:
+        - ssl
+        - letsencrypt
+      when: cert_mode == "letsencrypt"
+
+    - role: self-signed-certs
+      tags: ssl
+      when: cert_mode == "selfsigned"
+
+    - role: burp-collaborator
+      tags: burp
+
+    - role: nginx-proxy
+      tags: nginx
+
+  post_tasks:
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "============================================"
+          - "Burp Collaborator Deployment Complete!"
+          - "============================================"
+          - ""
+          - "Access Information:"
+          - "  - Domain: {{ collaborator_domain }}"
+          - "  - IP Address: {{ ansible_default_ipv4.address }}"
+          - "  - HTTP: http://{{ collaborator_domain }}"
+          - "  - HTTPS: https://{{ collaborator_domain }}"
+          - ""
+          - "Certificate Mode: {{ cert_mode }}"
+          - "{% if cert_mode == 'letsencrypt' %}"
+          - "Let's Encrypt certificates installed"
+          - "Auto-renewal enabled via certbot timer"
+          - "{% endif %}"
+          - ""
+          - "Burp Suite Configuration:"
+          - "  1. Go to Project options > Misc > Burp Collaborator Server"
+          - "  2. Select 'Use a private Collaborator server'"
+          - "  3. Server location: {{ collaborator_domain }}"
+          - "  4. Polling location: polling.{{ collaborator_domain }}"
+          - ""
+          - "Service Status:"
+          - "  systemctl status burp-collaborator"
+          - "  systemctl status nginx"
+          - "  systemctl status certbot.timer"
+          - ""
+          - "View Logs:"
+          - "  - Burp: journalctl -u burp-collaborator -f"
+          - "  - Nginx Access: tail -f /var/log/nginx/burp-access.log"
+          - "  - Nginx Error: tail -f /var/log/nginx/burp-error.log"
+          - "  - Certbot: journalctl -u certbot.timer -f"
+          - ""
+          - "Testing:"
+          - "  1. Test DNS: dig @{{ ansible_default_ipv4.address }} test.{{ collaborator_domain }}"
+          - "  2. Test HTTP: curl http://{{ collaborator_domain }}"
+          - "  3. Test HTTPS: curl https://{{ collaborator_domain }}"
+          - "  4. Test Burp polling: curl https://polling.{{ collaborator_domain }}"
+          - ""
+          - "Certificate Management:"
+          - "  - View certificates: sudo certbot certificates"
+          - "  - Test renewal: sudo certbot renew --dry-run"
+          - "  - Force renewal: sudo certbot renew --force-renewal"
+          - ""
+      tags: always
+
+    - name: Verify services are running
+      systemd:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - burp-collaborator
+        - nginx
+      tags: always
+      when: not ansible_check_mode
+
+    - name: Verify certbot timer is enabled
+      systemd:
+        name: certbot.timer
+        enabled: yes
+        state: started
+      when: cert_mode == "letsencrypt"
+      tags: always
