@@ -65,6 +65,14 @@ static_site_source: "{{ playbook_dir }}/../../static-site"
 # Java configuration
 java_package: openjdk-21-jre-headless
 
+# fail2ban configuration
+fail2ban_bantime: 600
+fail2ban_findtime: 600
+fail2ban_maxretry: 5
+fail2ban_ssh_maxretry: 3
+fail2ban_ssh_findtime: 300
+fail2ban_ssh_bantime: 3600
+
 # System configuration
 enable_firewall: true
 enable_port_forwarding: true  # Enable UFW port forwarding for privileged ports

@@ -1,5 +1,5 @@
 ---
-- name: restart systemd-resolved
-  systemd:
-    name: systemd-resolved
+- name: Restart fail2ban
+  service:
+    name: fail2ban
     state: restarted

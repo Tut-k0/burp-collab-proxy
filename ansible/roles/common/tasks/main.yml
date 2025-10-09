@@ -26,6 +26,7 @@
       - software-properties-common
       - gnupg
       - lsb-release
+      - fail2ban
     state: present
   tags: common
 
@@ -113,3 +114,24 @@
     - { key: 'net.ipv4.ip_local_port_range', value: '1024 65535' }
     - { key: 'net.core.netdev_max_backlog', value: '5000' }
   tags: common
+
+- name: Create fail2ban jail.local configuration
+  template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: 0644
+  notify: Restart fail2ban
+  tags:
+    - common
+    - fail2ban
+
+- name: Ensure fail2ban is enabled and started
+  service:
+    name: fail2ban
+    state: started
+    enabled: yes
+  tags:
+    - common
+    - fail2ban
