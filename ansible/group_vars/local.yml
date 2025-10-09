@@ -27,8 +27,8 @@ burp_smtps_port: 5587
 burp_polling_http_port: 9090
 burp_polling_https_port: 9443
 
-# Metrics port (internal only)
-burp_metrics_path: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=16') }}"
+# Metrics endpoint (Change this to something unique if you want, it is only exposed locally though.)
+burp_metrics_path: "Bx4cdNaLiCzYl5xC"
 burp_metrics_whitelist:
   - "127.0.0.1/32"
 

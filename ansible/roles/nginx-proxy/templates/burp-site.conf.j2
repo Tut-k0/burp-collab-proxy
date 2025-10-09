@@ -1,4 +1,4 @@
-# HTTP Server - Redirect to HTTPS
+# HTTP Server
 server {
     listen {{ public_http_port }};
     listen [::]:{{ public_http_port }};
@@ -41,6 +41,12 @@ server {
     # Internal location for polling requests
     location /burp-polling-rewrite {
         internal;
+
+        # Block metrics endpoint access
+    if ($request_uri ~* "^/{{ burp_metrics_path }}/metrics") {
+        return 403;
+    }
+
         rewrite ^/burp-polling-rewrite(.*)$ $1 break;
         proxy_pass https://127.0.0.1:{{ burp_polling_http_port }};
         proxy_ssl_verify off;
@@ -84,7 +90,7 @@ server {
     }
 }
 
-# HTTPS Server - Main Burp Collaborator Proxy
+# HTTPS Server
 server {
     listen {{ public_https_port }} ssl http2;
     listen [::]:{{ public_https_port }} ssl http2;
@@ -129,6 +135,12 @@ server {
     # Internal location for polling requests
     location /burp-polling-rewrite {
         internal;
+
+        # Block metrics endpoint access
+        if ($request_uri ~* "^/{{ burp_metrics_path }}/metrics") {
+            return 403;
+        }
+
         rewrite ^/burp-polling-rewrite(.*)$ $1 break;
         proxy_pass https://127.0.0.1:{{ burp_polling_https_port }};
         proxy_ssl_verify off;
