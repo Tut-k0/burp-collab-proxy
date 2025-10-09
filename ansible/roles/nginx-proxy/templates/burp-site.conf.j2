@@ -34,7 +34,7 @@ server {
 
     # Burp Collaborator polling subdomain (polling.domain.com)
     # Burp Suite client connects here to check for interactions
-    if ($host ~* "^polling\.") {
+    if ($host ~* "^{{ collaborator_polling_subdomain }}\.") {
         rewrite ^(.*)$ /burp-polling-rewrite$1 last;
     }
 
@@ -128,7 +128,7 @@ server {
 
     # Burp Collaborator polling subdomain (polling.domain.com)
     # Burp Suite client connects here to check for interactions
-    if ($host ~* "^polling\.") {
+    if ($host ~* "^{{ collaborator_polling_subdomain }}\.") {
         rewrite ^(.*)$ /burp-polling-rewrite$1 last;
     }
 

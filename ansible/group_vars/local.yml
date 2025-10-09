@@ -4,6 +4,7 @@ cert_mode: selfsigned
 
 # Domain configuration
 collaborator_domain: burp.local.test
+collaborator_polling_subdomain: polling
 collaborator_subdomain: "*.{{ collaborator_domain }}"
 
 # Burp Collaborator configuration
