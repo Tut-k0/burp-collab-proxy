@@ -1,0 +1,13 @@
+---
+- name: restart burp-collaborator
+  systemd:
+    name: burp-collaborator
+    state: restarted
+    daemon_reload: yes
+  when: not ansible_check_mode
+
+- name: reload burp-collaborator
+  systemd:
+    name: burp-collaborator
+    state: reloaded
+  when: not ansible_check_mode

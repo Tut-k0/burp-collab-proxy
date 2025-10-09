@@ -1,0 +1,63 @@
+---
+- name: Check if Burp JAR exists
+  stat:
+    path: "{{ burp_install_dir }}/{{ burp_jar_name }}"
+  register: burp_jar_stat
+  tags: burp
+
+- name: Download Burp Suite Pro JAR
+  get_url:
+    url: "{{ burp_jar_url }}"
+    dest: "{{ burp_install_dir }}/{{ burp_jar_name }}"
+    owner: "{{ burp_user }}"
+    group: "{{ burp_group }}"
+    mode: '0644'
+  when: not burp_jar_stat.stat.exists
+  tags: burp
+
+- name: Generate Burp Collaborator configuration
+  template:
+    src: collaborator.config.j2
+    dest: "{{ burp_config_file }}"
+    owner: "{{ burp_user }}"
+    group: "{{ burp_group }}"
+    mode: '0600'
+  notify: restart burp-collaborator
+  tags:
+    - burp
+    - config
+
+- name: Create systemd service for Burp Collaborator
+  template:
+    src: burp-collaborator.service.j2
+    dest: /etc/systemd/system/burp-collaborator.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart burp-collaborator
+  tags:
+    - burp
+    - systemd
+
+- name: Enable and start Burp Collaborator service
+  systemd:
+    name: burp-collaborator
+    enabled: yes
+    daemon_reload: yes
+    state: started
+  tags:
+    - burp
+    - systemd
+  when: not ansible_check_mode
+
+- name: Wait for Burp Collaborator to start
+  wait_for:
+    host: 127.0.0.1
+    port: "{{ item }}"
+    delay: 5
+    timeout: 60
+  loop:
+    - "{{ burp_http_port }}"
+    - "{{ burp_polling_http_port }}"
+  tags: burp
+  when: not ansible_check_mode

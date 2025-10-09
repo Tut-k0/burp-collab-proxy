@@ -1,0 +1,17 @@
+---
+- name: restart nginx
+  systemd:
+    name: nginx
+    state: restarted
+  when: not ansible_check_mode
+
+- name: reload nginx
+  systemd:
+    name: nginx
+    state: reloaded
+  when: not ansible_check_mode
+
+- name: validate nginx config
+  command: nginx -t
+  changed_when: false
+  when: not ansible_check_mode

@@ -1,0 +1,55 @@
+{
+  "serverDomain": "{{ collaborator_domain }}",
+  "workerThreads": 10,
+  "eventCapture": {
+    "localAddress": "0.0.0.0",
+    "publicAddress": "{{ ansible_default_ipv4.address }}",
+    "http": {
+      "ports": {{ burp_http_port }}
+    },
+    "https": {
+      "ports": {{ burp_https_port }}
+    },
+    "smtp": {
+      "ports": [{{ burp_smtp_port }}, {{ burp_smtps_port }}]
+    },
+    "smtps": {
+      "ports": {{ burp_smtps_port }}
+    },
+    "ssl": {
+      "certificateFiles": [
+        "{{ ssl_key_file }}",
+        "{{ ssl_cert_file }}"
+      ]
+    }
+  },
+  "polling": {
+    "localAddress": "0.0.0.0",
+    "publicAddress": "{{ ansible_default_ipv4.address }}",
+    "http": {
+      "port": {{ burp_polling_http_port }}
+    },
+    "https": {
+      "port": {{ burp_polling_https_port }}
+    },
+    "ssl": {
+      "certificateFiles": [
+        "{{ ssl_key_file }}",
+        "{{ ssl_cert_file }}"
+      ]
+    }
+  },
+  "metrics": {
+    "path": "{{ burp_metrics_path }}",
+    "addressWhitelist": {{ burp_metrics_whitelist | to_json }}
+  },
+  "dns": {
+    "interfaces": [{
+      "name": "ns1",
+      "localAddress": "0.0.0.0",
+      "publicAddress": "{{ ansible_default_ipv4.address }}"
+    }],
+    "ports": {{ burp_dns_port }}
+  },
+  "logLevel": "INFO"
+}

@@ -1,0 +1,129 @@
+---
+- name: Install OpenSSL
+  apt:
+    name: openssl
+    state: present
+  tags: ssl
+
+- name: Install pyOpenSSL for Ansible crypto modules
+  apt:
+    name: python3-openssl
+    state: present
+  tags: ssl
+
+- name: Create SSL certificate directory
+  file:
+    path: "{{ ssl_cert_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  tags: ssl
+  check_mode: no
+
+- name: Generate OpenSSL configuration file
+  template:
+    src: openssl.cnf.j2
+    dest: "{{ ssl_cert_dir }}/openssl.cnf"
+    owner: root
+    group: root
+    mode: '0644'
+  tags: ssl
+
+- name: Generate private key
+  openssl_privatekey:
+    path: "{{ ssl_key_file }}"
+    size: "{{ ssl_key_size }}"
+    type: RSA
+    format: pkcs8
+    mode: '0600'
+  tags: ssl
+  check_mode: no
+
+- name: Generate Certificate Signing Request (CSR)
+  openssl_csr:
+    path: "{{ ssl_cert_dir }}/burp.csr"
+    privatekey_path: "{{ ssl_key_file }}"
+    common_name: "{{ ssl_common_name }}"
+    country_name: "{{ ssl_country }}"
+    state_or_province_name: "{{ ssl_state }}"
+    locality_name: "{{ ssl_locality }}"
+    organization_name: "{{ ssl_organization }}"
+    organizational_unit_name: "{{ ssl_organizational_unit }}"
+    subject_alt_name:
+      - "DNS:{{ collaborator_domain }}"
+      - "DNS:*.{{ collaborator_domain }}"
+      - "IP:{{ ansible_default_ipv4.address }}"
+    mode: '0644'
+  tags: ssl
+  check_mode: no
+
+- name: Generate self-signed certificate
+  openssl_certificate:
+    path: "{{ ssl_cert_file }}"
+    privatekey_path: "{{ ssl_key_file }}"
+    csr_path: "{{ ssl_cert_dir }}/burp.csr"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ ssl_cert_validity_days }}d"
+    mode: '0644'
+  tags: ssl
+  check_mode: no
+
+- name: Set correct permissions on certificate files
+  file:
+    path: "{{ item }}"
+    owner: root
+    group: "{{ burp_group }}"
+    mode: '0640'
+  loop:
+    - "{{ ssl_cert_file }}"
+    - "{{ ssl_key_file }}"
+  tags: ssl
+
+- name: Display certificate information
+  command: openssl x509 -in {{ ssl_cert_file }} -noout -subject -dates -ext subjectAltName
+  register: cert_info
+  changed_when: false
+  tags: ssl
+  when: not ansible_check_mode
+
+- name: Show certificate details
+  debug:
+    var: cert_info.stdout_lines
+  tags: ssl
+  when: not ansible_check_mode
+
+- name: Create README for manual certificate replacement
+  copy:
+    dest: "{{ ssl_cert_dir }}/README.txt"
+    content: |
+      Manual Certificate Replacement Instructions
+      ============================================
+      
+      If you need to replace the self-signed certificates with proper CA-signed certificates:
+      
+      1. Place your certificate in: {{ ssl_cert_file }}
+      2. Place your private key in: {{ ssl_key_file }}
+      
+      Certificate Requirements:
+      - Must be in PEM format
+      - Must include Subject Alternative Names (SAN) for:
+        - {{ collaborator_domain }}
+        - *.{{ collaborator_domain }}
+      
+      After replacing certificates:
+      - Ensure permissions: 
+        - Certificate: chmod 644 {{ ssl_cert_file }}
+        - Private Key: chmod 640 {{ ssl_key_file }}
+        - Owner: chown root:{{ burp_group }} {{ ssl_cert_file }} {{ ssl_key_file }}
+      
+      - Restart services:
+        systemctl restart burp-collaborator
+        systemctl restart nginx
+      
+      Current certificate expires: Check with command below
+      openssl x509 -in {{ ssl_cert_file }} -noout -enddate
+    owner: root
+    group: root
+    mode: '0644'
+  tags: ssl

@@ -1,0 +1,22 @@
+[req]
+default_bits = {{ ssl_key_size }}
+prompt = no
+default_md = sha256
+req_extensions = req_ext
+distinguished_name = dn
+
+[dn]
+C = {{ ssl_country }}
+ST = {{ ssl_state }}
+L = {{ ssl_locality }}
+O = {{ ssl_organization }}
+OU = {{ ssl_organizational_unit }}
+CN = {{ ssl_common_name }}
+
+[req_ext]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = {{ collaborator_domain }}
+DNS.2 = *.{{ collaborator_domain }}
+IP.1 = {{ ansible_default_ipv4.address }}

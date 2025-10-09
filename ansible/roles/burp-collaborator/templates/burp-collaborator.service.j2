@@ -1,0 +1,24 @@
+[Unit]
+Description=Burp Collaborator Server
+After=network.target
+
+[Service]
+Type=simple
+User={{ burp_user }}
+Group={{ burp_group }}
+WorkingDirectory={{ burp_install_dir }}
+ExecStart=/usr/bin/java -Xmx2g -XX:GCTimeRatio=19 -jar {{ burp_install_dir }}/{{ burp_jar_name }} --collaborator-server --collaborator-config={{ burp_config_file }}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=burp-collaborator
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ burp_log_dir }}
+
+[Install]
+WantedBy=multi-user.target

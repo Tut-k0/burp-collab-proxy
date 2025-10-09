@@ -1,0 +1,166 @@
+# HTTP Server - Redirect to HTTPS
+server {
+    listen {{ public_http_port }};
+    listen [::]:{{ public_http_port }};
+    server_name {{ collaborator_domain }} *.{{ collaborator_domain }};
+
+    # Headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Allow Let's Encrypt challenges
+    location ^~ /.well-known/acme-challenge/ {
+        default_type "text/plain";
+        root /var/www/letsencrypt;
+    }
+
+    # Logging
+    access_log /var/log/nginx/burp-access.log;
+    error_log /var/log/nginx/burp-error.log;
+
+    # Static site root
+    root {{ static_site_dir }};
+    index index.html index.htm;
+
+    # Proxy settings for Burp Collaborator
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_request_buffering off;
+    proxy_http_version 1.1;
+
+    # Burp Collaborator polling subdomain (polling.domain.com)
+    # Burp Suite client connects here to check for interactions
+    if ($host ~* "^polling\.") {
+        rewrite ^(.*)$ /burp-polling-rewrite$1 last;
+    }
+
+    # Internal location for polling requests
+    location /burp-polling-rewrite {
+        internal;
+        rewrite ^/burp-polling-rewrite(.*)$ $1 break;
+        proxy_pass https://127.0.0.1:{{ burp_polling_https_port }};
+        proxy_ssl_verify off;
+    }
+
+    # Default location
+    location / {
+        try_files $uri $uri/ @proxy_or_static;
+    }
+
+    # Decide whether to proxy to Burp or serve static
+    location @proxy_or_static {
+        # Check if this is a subdomain by seeing if host != base domain
+        set $is_subdomain 0;
+        if ($host != "{{ collaborator_domain }}") {
+            set $is_subdomain 1;
+        }
+
+        # If subdomain, proxy to Burp
+        if ($is_subdomain = 1) {
+            rewrite ^ /burp-proxy-backend$uri last;
+        }
+
+        # Otherwise serve static site
+        try_files /index.html =404;
+    }
+
+    # Backend proxy location for Burp event capture
+    location /burp-proxy-backend {
+        internal;
+        rewrite ^/burp-proxy-backend(.*)$ $1 break;
+        proxy_pass https://127.0.0.1:{{ burp_https_port }};
+        proxy_ssl_verify off;
+    }
+
+    # Custom error pages
+    error_page 404 /404.html;
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
+        root {{ static_site_dir }};
+    }
+}
+
+# HTTPS Server - Main Burp Collaborator Proxy
+server {
+    listen {{ public_https_port }} ssl http2;
+    listen [::]:{{ public_https_port }} ssl http2;
+    server_name {{ collaborator_domain }} *.{{ collaborator_domain }};
+
+    # SSL Configuration
+    ssl_certificate {{ ssl_cert_file }};
+    ssl_certificate_key {{ ssl_key_file }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # Security Headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Logging
+    access_log /var/log/nginx/burp-access.log;
+    error_log /var/log/nginx/burp-error.log;
+
+    # Static site root
+    root {{ static_site_dir }};
+    index index.html index.htm;
+
+    # Proxy settings for Burp Collaborator
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_request_buffering off;
+    proxy_http_version 1.1;
+
+    # Burp Collaborator polling subdomain (polling.domain.com)
+    # Burp Suite client connects here to check for interactions
+    if ($host ~* "^polling\.") {
+        rewrite ^(.*)$ /burp-polling-rewrite$1 last;
+    }
+
+    # Internal location for polling requests
+    location /burp-polling-rewrite {
+        internal;
+        rewrite ^/burp-polling-rewrite(.*)$ $1 break;
+        proxy_pass https://127.0.0.1:{{ burp_polling_https_port }};
+        proxy_ssl_verify off;
+    }
+
+    # Default location
+    location / {
+        try_files $uri $uri/ @proxy_or_static;
+    }
+
+    # Decide whether to proxy to Burp or serve static
+    location @proxy_or_static {
+        # Check if this is a subdomain by seeing if host != base domain
+        set $is_subdomain 0;
+        if ($host != "{{ collaborator_domain }}") {
+            set $is_subdomain 1;
+        }
+
+        # If subdomain, proxy to Burp
+        if ($is_subdomain = 1) {
+            rewrite ^ /burp-proxy-backend$uri last;
+        }
+
+        # Otherwise serve static site
+        try_files /index.html =404;
+    }
+
+    # Backend proxy location for Burp event capture
+    location /burp-proxy-backend {
+        internal;
+        rewrite ^/burp-proxy-backend(.*)$ $1 break;
+        proxy_pass https://127.0.0.1:{{ burp_https_port }};
+        proxy_ssl_verify off;
+    }
+}
