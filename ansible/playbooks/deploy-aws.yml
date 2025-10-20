@@ -22,36 +22,77 @@
         timeout: 300
       tags: always
 
-    - name: Verify DNS is configured
+    - name: Verify DNS is configured (Route53 mode)
       command: dig +short {{ collaborator_domain }}
       register: dns_check
       changed_when: false
       failed_when: false
       delegate_to: localhost
       become: no
+      when: cert_mode in ['letsencrypt-route53', 'letsencrypt-namecheap', 'letsencrypt-manual']
       tags: always
 
     - name: Display DNS check results
       debug:
         msg:
           - "DNS Resolution Check:"
-          - "{{ dns_check.stdout_lines }}"
+          - "{{ dns_check.stdout_lines | default(['DNS check skipped']) }}"
           - "Expected IP: {{ ansible_default_ipv4.address }}"
       tags: always
 
-    - name: Warn if DNS not configured
+    - name: Warn if DNS not configured (Let's Encrypt modes)
       pause:
         prompt: |
           WARNING: DNS may not be properly configured!
           
           Expected: {{ ansible_default_ipv4.address }}
-          Got: {{ dns_check.stdout }}
+          Got: {{ dns_check.stdout | default('N/A') }}
           
           Let's Encrypt requires properly configured DNS.
+          For wildcard certificates, both {{ collaborator_domain }} and *.{{ collaborator_domain }} must resolve.
           Press Enter to continue anyway, or Ctrl+C to abort.
       when:
-        - cert_mode == "letsencrypt"
+        - cert_mode in ['letsencrypt-route53', 'letsencrypt-namecheap', 'letsencrypt-manual']
+        - dns_check is defined
         - dns_check.stdout != ansible_default_ipv4.address
+      tags: always
+
+    - name: Validate Route53 permissions (Route53 mode)
+      block:
+        - name: Check AWS credentials
+          shell: aws sts get-caller-identity
+          register: aws_identity
+          delegate_to: localhost
+          become: no
+          when: cert_mode == 'letsencrypt-route53'
+
+        - name: Display AWS identity
+          debug:
+            msg: "Using AWS identity: {{ aws_identity.stdout | from_json }}"
+          when: cert_mode == 'letsencrypt-route53' and aws_identity is succeeded
+      rescue:
+        - name: AWS credentials warning
+          debug:
+            msg: |
+              WARNING: AWS credentials not configured or accessible.
+              For Route53 mode, ensure:
+              1. AWS CLI is configured, OR
+              2. EC2 instance has appropriate IAM role, OR
+              3. AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set
+      when: cert_mode == 'letsencrypt-route53'
+      tags: always
+
+    - name: Validate Namecheap configuration (Namecheap mode)
+      fail:
+        msg: |
+          Namecheap mode requires the following variables to be set:
+          - namecheap_username
+          - namecheap_api_key
+          
+          Please set these in your vault or group variables.
+      when:
+        - cert_mode == 'letsencrypt-namecheap'
+        - namecheap_username == '' or namecheap_api_key == ''
       tags: always
 
   roles:
@@ -62,11 +103,12 @@
       tags: firewall
       when: enable_firewall
 
+    # Certificate roles - only run the appropriate one based on cert_mode
     - role: letsencrypt-certs
       tags:
         - ssl
         - letsencrypt
-      when: cert_mode == "letsencrypt"
+      when: cert_mode in ['letsencrypt-route53', 'letsencrypt-namecheap', 'letsencrypt-manual']
 
     - role: self-signed-certs
       tags: ssl
@@ -93,8 +135,16 @@
           - "  - HTTPS: https://{{ collaborator_domain }}"
           - ""
           - "Certificate Mode: {{ cert_mode }}"
-          - "{% if cert_mode == 'letsencrypt' %}"
-          - "Let's Encrypt certificates installed"
+          - "{% if cert_mode == 'letsencrypt-route53' %}"
+          - "Let's Encrypt certificates via Route53 DNS challenge"
+          - "{% elif cert_mode == 'letsencrypt-namecheap' %}"
+          - "Let's Encrypt certificates via Namecheap DNS challenge"
+          - "{% elif cert_mode == 'letsencrypt-manual' %}"
+          - "Let's Encrypt certificates via manual DNS challenge"
+          - "{% else %}"
+          - "Self-signed certificates installed"
+          - "{% endif %}"
+          - "{% if cert_mode != 'selfsigned' %}"
           - "Auto-renewal enabled via certbot timer"
           - "{% endif %}"
           - ""
@@ -107,13 +157,17 @@
           - "Service Status:"
           - "  systemctl status burp-collaborator"
           - "  systemctl status nginx"
+          - "{% if cert_mode != 'selfsigned' %}"
           - "  systemctl status certbot.timer"
+          - "{% endif %}"
           - ""
           - "View Logs:"
           - "  - Burp: journalctl -u burp-collaborator -f"
           - "  - Nginx Access: tail -f /var/log/nginx/burp-access.log"
           - "  - Nginx Error: tail -f /var/log/nginx/burp-error.log"
+          - "{% if cert_mode != 'selfsigned' %}"
           - "  - Certbot: journalctl -u certbot.timer -f"
+          - "{% endif %}"
           - ""
           - "Testing:"
           - "  1. Test DNS: dig @{{ ansible_default_ipv4.address }} test.{{ collaborator_domain }}"
@@ -121,10 +175,12 @@
           - "  3. Test HTTPS: curl https://{{ collaborator_domain }}"
           - "  4. Test Burp polling: curl https://polling.{{ collaborator_domain }}"
           - ""
+          - "{% if cert_mode != 'selfsigned' %}"
           - "Certificate Management:"
           - "  - View certificates: sudo certbot certificates"
           - "  - Test renewal: sudo certbot renew --dry-run"
           - "  - Force renewal: sudo certbot renew --force-renewal"
+          - "{% endif %}"
           - ""
       tags: always
 
@@ -143,5 +199,5 @@
         name: certbot.timer
         enabled: yes
         state: started
-      when: cert_mode == "letsencrypt"
+      when: cert_mode != 'selfsigned'
       tags: always

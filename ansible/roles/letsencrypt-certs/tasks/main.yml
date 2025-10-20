@@ -4,16 +4,24 @@
     name:
       - certbot
       - python3-certbot-nginx
+      - python3-certbot-dns-route53  # AWS Route53 plugin
     state: present
   tags: letsencrypt
 
-- name: Create Let's Encrypt challenge directory
+- name: Install Namecheap certbot plugin
+  pip:
+    name: certbot-dns-namecheap
+    state: present
+  when: cert_mode == "letsencrypt-namecheap"
+  tags: letsencrypt
+
+- name: Create SSL certificate directory
   file:
-    path: /var/www/letsencrypt
+    path: "{{ ssl_cert_dir }}"
     state: directory
-    owner: "{{ nginx_user }}"
-    group: "{{ nginx_user }}"
-    mode: '0755'
+    owner: root
+    group: "{{ burp_group }}"
+    mode: '0750'
   tags: letsencrypt
 
 - name: Check if certificates already exist
@@ -22,36 +30,96 @@
   register: cert_exists
   tags: letsencrypt
 
-- name: Stop nginx temporarily for initial certificate
-  systemd:
-    name: nginx
-    state: stopped
-  when: not cert_exists.stat.exists
-  tags: letsencrypt
-
-- name: Obtain Let's Encrypt certificate (standalone mode)
+# Route53 DNS challenge
+- name: Obtain Let's Encrypt certificate (Route53 DNS challenge)
   command: >
     certbot certonly
-    --standalone
+    --dns-route53
     --non-interactive
     --agree-tos
     --email {{ letsencrypt_email }}
     {% if letsencrypt_staging %}--staging{% endif %}
     -d {{ collaborator_domain }}
     -d *.{{ collaborator_domain }}
-    --preferred-challenges http
-  when: not cert_exists.stat.exists
+    --dns-route53-propagation-seconds 60
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key_id | default(omit) }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_access_key | default(omit) }}"
+    AWS_DEFAULT_REGION: "{{ aws_region | default('us-east-1') }}"
+  when:
+    - cert_mode == "letsencrypt-route53"
+    - not cert_exists.stat.exists
   register: certbot_result
   failed_when: certbot_result.rc != 0
   tags: letsencrypt
 
-- name: Start nginx after certificate obtained
-  systemd:
-    name: nginx
-    state: started
-  when: not cert_exists.stat.exists
+# Namecheap DNS challenge
+- name: Create Namecheap credentials file
+  template:
+    src: namecheap-credentials.ini.j2
+    dest: /etc/letsencrypt/namecheap-credentials.ini
+    owner: root
+    group: root
+    mode: '0600'
+  when: cert_mode == "letsencrypt-namecheap"
   tags: letsencrypt
 
+- name: Obtain Let's Encrypt certificate (Namecheap DNS challenge)
+  command: >
+    certbot certonly
+    --dns-namecheap
+    --dns-namecheap-credentials /etc/letsencrypt/namecheap-credentials.ini
+    --non-interactive
+    --agree-tos
+    --email {{ letsencrypt_email }}
+    {% if letsencrypt_staging %}--staging{% endif %}
+    -d {{ collaborator_domain }}
+    -d *.{{ collaborator_domain }}
+    --dns-namecheap-propagation-seconds 120
+  when:
+    - cert_mode == "letsencrypt-namecheap"
+    - not cert_exists.stat.exists
+  register: certbot_result
+  failed_when: certbot_result.rc != 0
+  tags: letsencrypt
+
+# Manual DNS challenge (fallback)
+- name: Obtain Let's Encrypt certificate (Manual DNS challenge)
+  command: >
+    certbot certonly
+    --manual
+    --preferred-challenges dns
+    --non-interactive
+    --agree-tos
+    --email {{ letsencrypt_email }}
+    {% if letsencrypt_staging %}--staging{% endif %}
+    -d {{ collaborator_domain }}
+    -d *.{{ collaborator_domain }}
+    --manual-public-ip-logging-ok
+  when:
+    - cert_mode == "letsencrypt-manual"
+    - not cert_exists.stat.exists
+  register: certbot_manual_result
+  failed_when: false  # Allow manual intervention
+  tags: letsencrypt
+
+- name: Display manual DNS challenge instructions
+  debug:
+    msg: |
+      MANUAL DNS CHALLENGE REQUIRED!
+      
+      Please add the following TXT records to your DNS:
+      {{ certbot_manual_result.stdout | regex_findall('Please deploy a DNS TXT record.*') }}
+      
+      After adding the records, run:
+      certbot --manual --preferred-challenges dns --expand -d {{ collaborator_domain }} -d *.{{ collaborator_domain }}
+  when:
+    - cert_mode == "letsencrypt-manual"
+    - certbot_manual_result is defined
+    - certbot_manual_result.rc != 0
+  tags: letsencrypt
+
+# Common certificate linking (same for all modes)
 - name: Create symbolic link for certificate
   file:
     src: "/etc/letsencrypt/live/{{ collaborator_domain }}/fullchain.pem"
@@ -61,6 +129,7 @@
   notify:
     - restart burp-collaborator
     - restart nginx
+  when: cert_exists.stat.exists or (certbot_result is defined and certbot_result.rc == 0)
   tags: letsencrypt
 
 - name: Create symbolic link for private key
@@ -72,29 +141,24 @@
   notify:
     - restart burp-collaborator
     - restart nginx
+  when: cert_exists.stat.exists or (certbot_result is defined and certbot_result.rc == 0)
   tags: letsencrypt
 
-- name: Set correct permissions on certificate directory
+- name: Set correct permissions on certificate directories
   file:
-    path: "/etc/letsencrypt/live/{{ collaborator_domain }}"
+    path: "{{ item }}"
     state: directory
     owner: root
     group: "{{ burp_group }}"
     mode: '0750'
     recurse: yes
+  loop:
+    - "/etc/letsencrypt/live/{{ collaborator_domain }}"
+    - "/etc/letsencrypt/archive/{{ collaborator_domain }}"
+  when: cert_exists.stat.exists or (certbot_result is defined and certbot_result.rc == 0)
   tags: letsencrypt
 
-- name: Set correct permissions on archive directory
-  file:
-    path: "/etc/letsencrypt/archive/{{ collaborator_domain }}"
-    state: directory
-    owner: root
-    group: "{{ burp_group }}"
-    mode: '0750'
-    recurse: yes
-  tags: letsencrypt
-
-- name: Create certbot renewal hook script
+- name: Create enhanced certbot renewal hook script
   template:
     src: renewal-hook.sh.j2
     dest: /etc/letsencrypt/renewal-hooks/deploy/burp-restart.sh
@@ -110,25 +174,22 @@
     state: started
   tags: letsencrypt
 
-- name: Test certificate renewal
+- name: Test certificate renewal (dry run)
   command: certbot renew --dry-run
   register: renewal_test
   changed_when: false
   failed_when: false
   tags: letsencrypt
 
-- name: Display renewal test results
-  debug:
-    var: renewal_test.stdout_lines
-  tags: letsencrypt
-
 - name: Display certificate information
   command: certbot certificates
   register: cert_info
   changed_when: false
+  when: cert_exists.stat.exists or (certbot_result is defined and certbot_result.rc == 0)
   tags: letsencrypt
 
 - name: Show certificate details
   debug:
     var: cert_info.stdout_lines
+  when: cert_info is defined
   tags: letsencrypt
