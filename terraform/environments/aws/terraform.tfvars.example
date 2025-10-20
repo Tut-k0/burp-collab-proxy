@@ -16,13 +16,10 @@ cert_mode = "letsencrypt-route53"
 # Set to false if using external DNS provider (like Namecheap)
 create_route53_zone = true
 
-# Let's Encrypt configuration
-letsencrypt_email = "your-email@example.com"
-letsencrypt_staging = false
-
 # SSH Configuration
 # Generate with: cat ~/.ssh/id_rsa.pub
 ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... your-email@example.com"
+ssh_private_key_path = "~/.ssh/id_rsa"
 
 # Restrict SSH access to your IP for better security
 # Get your IP with: curl -s ifconfig.me
@@ -34,8 +31,3 @@ public_subnet_cidr = "10.0.1.0/24"
 
 # Storage
 root_volume_size = 30
-
-# Namecheap configuration (only needed if cert_mode = "letsencrypt-namecheap")
-# Store these securely, preferably in environment variables or vault
-# namecheap_username = "your-namecheap-username"
-# namecheap_api_key = "your-namecheap-api-key"

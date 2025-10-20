@@ -3,7 +3,7 @@
   "workerThreads": 10,
   "eventCapture": {
     "localAddress": "0.0.0.0",
-    "publicAddress": "{{ ansible_default_ipv4.address }}",
+    "publicAddress": "{{ inventory_hostname }}",
     "http": {
       "ports": {{ burp_http_port }}
     },
@@ -25,7 +25,7 @@
   },
   "polling": {
     "localAddress": "0.0.0.0",
-    "publicAddress": "{{ ansible_default_ipv4.address }}",
+    "publicAddress": "{{ inventory_hostname }}",
     "http": {
       "port": {{ burp_polling_http_port }}
     },
@@ -47,7 +47,7 @@
     "interfaces": [{
       "name": "ns1",
       "localAddress": "0.0.0.0",
-      "publicAddress": "{{ ansible_default_ipv4.address }}"
+      "publicAddress": "{{ inventory_hostname }}"
     }],
     "ports": {{ burp_dns_port }}
   },

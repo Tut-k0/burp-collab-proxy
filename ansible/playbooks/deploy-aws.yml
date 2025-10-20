@@ -37,7 +37,7 @@
         msg:
           - "DNS Resolution Check:"
           - "{{ dns_check.stdout_lines | default(['DNS check skipped']) }}"
-          - "Expected IP: {{ ansible_default_ipv4.address }}"
+          - "Expected IP: {{ inventory_hostname }}"
       tags: always
 
     - name: Warn if DNS not configured (Let's Encrypt modes)
@@ -45,7 +45,7 @@
         prompt: |
           WARNING: DNS may not be properly configured!
           
-          Expected: {{ ansible_default_ipv4.address }}
+          Expected: {{ inventory_hostname }}
           Got: {{ dns_check.stdout | default('N/A') }}
           
           Let's Encrypt requires properly configured DNS.
@@ -54,7 +54,7 @@
       when:
         - cert_mode in ['letsencrypt-route53', 'letsencrypt-namecheap', 'letsencrypt-manual']
         - dns_check is defined
-        - dns_check.stdout != ansible_default_ipv4.address
+        - dns_check.stdout != {{ inventory_hostname }}
       tags: always
 
     - name: Validate Route53 permissions (Route53 mode)
@@ -123,65 +123,64 @@
   post_tasks:
     - name: Display deployment summary
       debug:
-        msg:
-          - "============================================"
-          - "Burp Collaborator Deployment Complete!"
-          - "============================================"
-          - ""
-          - "Access Information:"
-          - "  - Domain: {{ collaborator_domain }}"
-          - "  - IP Address: {{ ansible_default_ipv4.address }}"
-          - "  - HTTP: http://{{ collaborator_domain }}"
-          - "  - HTTPS: https://{{ collaborator_domain }}"
-          - ""
-          - "Certificate Mode: {{ cert_mode }}"
-          - "{% if cert_mode == 'letsencrypt-route53' %}"
-          - "Let's Encrypt certificates via Route53 DNS challenge"
-          - "{% elif cert_mode == 'letsencrypt-namecheap' %}"
-          - "Let's Encrypt certificates via Namecheap DNS challenge"
-          - "{% elif cert_mode == 'letsencrypt-manual' %}"
-          - "Let's Encrypt certificates via manual DNS challenge"
-          - "{% else %}"
-          - "Self-signed certificates installed"
-          - "{% endif %}"
-          - "{% if cert_mode != 'selfsigned' %}"
-          - "Auto-renewal enabled via certbot timer"
-          - "{% endif %}"
-          - ""
-          - "Burp Suite Configuration:"
-          - "  1. Go to Project options > Misc > Burp Collaborator Server"
-          - "  2. Select 'Use a private Collaborator server'"
-          - "  3. Server location: {{ collaborator_domain }}"
-          - "  4. Polling location: polling.{{ collaborator_domain }}"
-          - ""
-          - "Service Status:"
-          - "  systemctl status burp-collaborator"
-          - "  systemctl status nginx"
-          - "{% if cert_mode != 'selfsigned' %}"
-          - "  systemctl status certbot.timer"
-          - "{% endif %}"
-          - ""
-          - "View Logs:"
-          - "  - Burp: journalctl -u burp-collaborator -f"
-          - "  - Nginx Access: tail -f /var/log/nginx/burp-access.log"
-          - "  - Nginx Error: tail -f /var/log/nginx/burp-error.log"
-          - "{% if cert_mode != 'selfsigned' %}"
-          - "  - Certbot: journalctl -u certbot.timer -f"
-          - "{% endif %}"
-          - ""
-          - "Testing:"
-          - "  1. Test DNS: dig @{{ ansible_default_ipv4.address }} test.{{ collaborator_domain }}"
-          - "  2. Test HTTP: curl http://{{ collaborator_domain }}"
-          - "  3. Test HTTPS: curl https://{{ collaborator_domain }}"
-          - "  4. Test Burp polling: curl https://polling.{{ collaborator_domain }}"
-          - ""
-          - "{% if cert_mode != 'selfsigned' %}"
-          - "Certificate Management:"
-          - "  - View certificates: sudo certbot certificates"
-          - "  - Test renewal: sudo certbot renew --dry-run"
-          - "  - Force renewal: sudo certbot renew --force-renewal"
-          - "{% endif %}"
-          - ""
+        msg: |
+          ============================================
+          Burp Collaborator Deployment Complete!
+          ============================================
+
+          Access Information:
+            - Domain: {{ collaborator_domain }}
+            - IP Address: {{ inventory_hostname }}
+            - HTTP: http://{{ collaborator_domain }}
+            - HTTPS: https://{{ collaborator_domain }}
+
+          Certificate Mode: {{ cert_mode }}
+          {% if cert_mode == 'letsencrypt-route53' -%}
+          Let's Encrypt certificates via Route53 DNS challenge
+          Auto-renewal enabled via certbot timer
+          {% elif cert_mode == 'letsencrypt-namecheap' -%}
+          Let's Encrypt certificates via Namecheap DNS challenge
+          Auto-renewal enabled via certbot timer
+          {% elif cert_mode == 'letsencrypt-manual' -%}
+          Let's Encrypt certificates via manual DNS challenge
+          Auto-renewal enabled via certbot timer
+          {% else -%}
+          Self-signed certificates installed
+          {% endif %}
+
+          Burp Suite Configuration:
+            1. Go to Project options > Misc > Burp Collaborator Server
+            2. Select 'Use a private Collaborator server'
+            3. Server location: {{ collaborator_domain }}
+            4. Polling location: polling.{{ collaborator_domain }}
+
+          Service Status:
+            systemctl status burp-collaborator
+            systemctl status nginx
+          {% if cert_mode != 'selfsigned' -%}
+            systemctl status certbot.timer
+          {% endif %}
+
+          View Logs:
+            - Burp: journalctl -u burp-collaborator -f
+            - Nginx Access: tail -f /var/log/nginx/burp-access.log
+            - Nginx Error: tail -f /var/log/nginx/burp-error.log
+          {% if cert_mode != 'selfsigned' -%}
+            - Certbot: journalctl -u certbot.timer -f
+          {% endif %}
+
+          Testing:
+            1. Test DNS: dig @{{ inventory_hostname }} test.{{ collaborator_domain }}
+            2. Test HTTP: curl http://{{ collaborator_domain }}
+            3. Test HTTPS: curl https://{{ collaborator_domain }}
+            4. Test Burp polling: curl https://polling.{{ collaborator_domain }}
+
+          {% if cert_mode != 'selfsigned' -%}
+          Certificate Management:
+            - View certificates: sudo certbot certificates
+            - Test renewal: sudo certbot renew --dry-run
+            - Force renewal: sudo certbot renew --force-renewal
+          {% endif %}
       tags: always
 
     - name: Verify services are running

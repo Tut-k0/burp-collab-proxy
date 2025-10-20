@@ -27,6 +27,7 @@ module "burp_collaborator" {
   instance_type        = var.instance_type
   root_volume_size     = var.root_volume_size
   ssh_public_key       = var.ssh_public_key
+  ssh_private_key_path = var.ssh_private_key_path
   ssh_allowed_cidrs    = var.ssh_allowed_cidrs
   collaborator_domain  = var.collaborator_domain
   create_route53_zone  = var.create_route53_zone

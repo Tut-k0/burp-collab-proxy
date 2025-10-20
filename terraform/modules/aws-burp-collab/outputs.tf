@@ -47,7 +47,7 @@ output "ansible_inventory" {
   description = "Ansible inventory content for this host"
   value = <<-EOT
     [aws]
-    ${aws_eip.burp_eip.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+    ${aws_eip.burp_eip.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=${var.ssh_private_key_path}
 
     [aws:vars]
     ansible_python_interpreter=/usr/bin/python3

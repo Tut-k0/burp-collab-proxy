@@ -53,7 +53,7 @@
     subject_alt_name:
       - "DNS:{{ collaborator_domain }}"
       - "DNS:*.{{ collaborator_domain }}"
-      - "IP:{{ ansible_default_ipv4.address }}"
+      - "IP:{{ inventory_hostname }}"
     mode: '0644'
   tags: ssl
   check_mode: no

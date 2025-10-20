@@ -45,6 +45,11 @@ variable "ssh_public_key" {
   type        = string
 }
 
+variable "ssh_private_key_path" {
+  description = "SSH private key location to use for accessing EC2 instance"
+  type = string
+}
+
 variable "ssh_allowed_cidrs" {
   description = "CIDR blocks allowed to SSH"
   type        = list(string)
