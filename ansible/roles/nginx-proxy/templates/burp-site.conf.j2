@@ -41,7 +41,7 @@ server {
         }
 
         rewrite ^/burp-polling-rewrite(.*)$ $1 break;
-        proxy_pass https://127.0.0.1:{{ burp_polling_http_port }};
+        proxy_pass http://127.0.0.1:{{ burp_polling_http_port }};
         proxy_ssl_verify off;
     }
 
@@ -52,14 +52,16 @@ server {
 
     # Decide whether to proxy to Burp or serve static
     location @proxy_or_static {
-        # Check if this is a subdomain
-        set $is_subdomain 0;
-        if ($host != "{{ collaborator_domain }}") {
-            set $is_subdomain 1;
+        # Burp Collaborator generates long subdomains, so this filters off of length and characters
+        # Pattern: [a-z0-9]{30,37}.collaborator_domain
+        set $is_burp_subdomain 0;
+
+        if ($host ~* "^[a-z0-9]{30,37}\.{{ collaborator_domain | regex_escape }}$") {
+            set $is_burp_subdomain 1;
         }
 
-        # If subdomain, proxy to Burp
-        if ($is_subdomain = 1) {
+        # If valid Burp subdomain, proxy to Burp
+        if ($is_burp_subdomain = 1) {
             rewrite ^ /burp-proxy-backend$uri last;
         }
 
@@ -71,8 +73,7 @@ server {
     location /burp-proxy-backend {
         internal;
         rewrite ^/burp-proxy-backend(.*)$ $1 break;
-        proxy_pass https://127.0.0.1:{{ burp_http_port }};
-        proxy_ssl_verify off;
+        proxy_pass http://127.0.0.1:{{ burp_http_port }};
     }
 
     # Custom error pages
@@ -145,14 +146,16 @@ server {
 
     # Decide whether to proxy to Burp or serve static
     location @proxy_or_static {
-        # Check if this is a subdomain
-        set $is_subdomain 0;
-        if ($host != "{{ collaborator_domain }}") {
-            set $is_subdomain 1;
+        # Burp Collaborator generates long subdomains, so this filters off of length and characters
+        # Pattern: [a-z0-9]{30,37}.collaborator_domain
+        set $is_burp_subdomain 0;
+
+        if ($host ~* "^[a-z0-9]{30,37}\.{{ collaborator_domain | regex_escape }}$") {
+            set $is_burp_subdomain 1;
         }
 
-        # If subdomain, proxy to Burp
-        if ($is_subdomain = 1) {
+        # If valid Burp subdomain, proxy to Burp
+        if ($is_burp_subdomain = 1) {
             rewrite ^ /burp-proxy-backend$uri last;
         }
 

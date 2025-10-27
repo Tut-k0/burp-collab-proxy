@@ -30,7 +30,7 @@ output "security_group_id" {
 
 output "ssh_command" {
   description = "SSH command to connect to instance"
-  value       = "ssh -i ~/.ssh/id_rsa ubuntu@${aws_eip.burp_eip.public_ip}"
+  value       = "ssh -i ${var.ssh_private_key_path} ubuntu@${aws_eip.burp_eip.public_ip}"
 }
 
 output "route53_zone_id" {

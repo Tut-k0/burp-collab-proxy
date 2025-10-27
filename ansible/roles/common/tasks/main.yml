@@ -27,6 +27,7 @@
       - gnupg
       - lsb-release
       - fail2ban
+      - certbot
     state: present
   tags: common
 
