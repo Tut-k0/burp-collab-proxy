@@ -8,8 +8,9 @@ instance_type  = "t3.small"
 collaborator_domain = "burp.yourdomain.com"
 
 # Certificate configuration
-# Options: "selfsigned", "letsencrypt-route53", "letsencrypt-namecheap", "letsencrypt-manual"
-cert_mode = "letsencrypt-route53"
+# Options: "selfsigned", "letsencrypt-route53"
+# Only selfsigned is supported currently, route53 is untested
+cert_mode = "selfsigned"
 
 # Set to true if you want Terraform to create and manage Route53 hosted zone
 # Required when cert_mode = "letsencrypt-route53"
