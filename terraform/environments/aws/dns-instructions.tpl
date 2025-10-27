@@ -13,7 +13,7 @@ Nameservers for delegation:
 %{ endfor ~}
 
 ACTION REQUIRED:
-1. Go to your domain registrar (Namecheap)
+1. Go to your domain registrar
 2. Update the nameservers for ${domain} to the ones listed above
 3. Wait for DNS propagation (typically 15-30 minutes, can be up to 48 hours)
 
@@ -22,23 +22,47 @@ To verify propagation:
   dig ${domain}
 
 %{ else }
-Manual DNS Configuration (Namecheap)
-------------------------------------
+Manual DNS Configuration
+------------------------
 
-Since you're using an external DNS provider, add these records at your registrar:
+Add these records at your DNS provider/registrar:
 
-Required Records:
------------------
+STEP 1: Basic A Records (Required First)
+-----------------------------------------
 
 1. A Record (Root):
    Host:  @
    Value: ${public_ip}
-   TTL:   300 (or Automatic)
+   TTL:   300
 
 2. A Record (Wildcard):
    Host:  *
    Value: ${public_ip}
    TTL:   300
+
+Verification:
+  dig ${domain}
+  dig test.${domain}
+
+Expected: Both should resolve to ${public_ip}
+
+STEP 2: External Certificate Setup (Optional)
+----------------------------------------------
+
+If using Let's Encrypt or another certificate provider:
+- Ensure ports 80 and 443 are accessible
+- Wait for full DNS propagation
+- Follow your certificate provider's instructions
+
+For Let's Encrypt with certbot:
+  certbot certonly --standalone -d ${domain} -d *.${domain}
+
+Then copy certificates to the server and update ansible config.
+
+STEP 3: NS Records for Full Burp Functionality (Final Step)
+------------------------------------------------------------
+
+After Ansible deployment is complete and Burp Collaborator is running:
 
 3. A Record (NS1):
    Host:  ns1
@@ -50,35 +74,29 @@ Required Records:
    Value: ns1.${domain}
    TTL:   300
 
-Note: Some registrars may require you to create the A record for ns1 before
-      allowing you to create the NS record pointing to it.
+Note: Some registrars require the A record for ns1 before allowing
+      the NS record pointing to it.
 
-Verification Commands:
-----------------------
-After DNS propagation:
-  dig ${domain}
-  dig test.${domain}
-  dig ns1.${domain}
+Verification:
   dig @${public_ip} test.${domain}
+  dig ns1.${domain}
 
-Expected Results:
-  - ${domain} should resolve to ${public_ip}
-  - *.${domain} should resolve to ${public_ip}
-  - ns1.${domain} should resolve to ${public_ip}
-  - Direct DNS query to server should work (after ansible run)
+This delegates DNS queries to your Burp Collaborator server,
+enabling it to capture DNS-based interactions.
 
 %{ endif }
 
-Let's Encrypt Requirements:
-----------------------------
-For Let's Encrypt certificates to work:
-- Domain must be publicly resolvable
-- Ports 80 and 443 must be accessible
-- Wait for full DNS propagation before running ansible
+Summary of Required Steps:
+---------------------------
+1. Configure A records (@ and *)
+2. Wait for DNS propagation (5-30 minutes)
+3. Run Ansible deployment
+4. Configure NS records (ns1 and @)
+5. Verify DNS delegation works
 
-Test DNS propagation from multiple locations:
+Test DNS propagation:
   https://dnschecker.org/#A/${domain}
 
-Once DNS is working, proceed with Ansible deployment:
+Once A records are working, proceed with Ansible:
   cd ../../../ansible
   ansible-playbook -i inventory/aws playbooks/deploy-aws.yml

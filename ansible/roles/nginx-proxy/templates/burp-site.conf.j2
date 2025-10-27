@@ -4,16 +4,10 @@ server {
     listen [::]:{{ public_http_port }};
     server_name {{ collaborator_domain }} *.{{ collaborator_domain }};
 
-    # Headers
+    # Security Headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
-
-    # Allow Let's Encrypt challenges
-    location ^~ /.well-known/acme-challenge/ {
-        default_type "text/plain";
-        root /var/www/letsencrypt;
-    }
 
     # Logging
     access_log /var/log/nginx/burp-access.log;
@@ -33,7 +27,6 @@ server {
     proxy_http_version 1.1;
 
     # Burp Collaborator polling subdomain (polling.domain.com)
-    # Burp Suite client connects here to check for interactions
     if ($host ~* "^{{ collaborator_polling_subdomain }}\.") {
         rewrite ^(.*)$ /burp-polling-rewrite$1 last;
     }
@@ -43,9 +36,9 @@ server {
         internal;
 
         # Block metrics endpoint access
-    if ($request_uri ~* "^/{{ burp_metrics_path }}/metrics") {
-        return 403;
-    }
+        if ($request_uri ~* "^/{{ burp_metrics_path }}/metrics") {
+            return 403;
+        }
 
         rewrite ^/burp-polling-rewrite(.*)$ $1 break;
         proxy_pass https://127.0.0.1:{{ burp_polling_http_port }};
@@ -59,7 +52,7 @@ server {
 
     # Decide whether to proxy to Burp or serve static
     location @proxy_or_static {
-        # Check if this is a subdomain by seeing if host != base domain
+        # Check if this is a subdomain
         set $is_subdomain 0;
         if ($host != "{{ collaborator_domain }}") {
             set $is_subdomain 1;
@@ -127,7 +120,6 @@ server {
     proxy_http_version 1.1;
 
     # Burp Collaborator polling subdomain (polling.domain.com)
-    # Burp Suite client connects here to check for interactions
     if ($host ~* "^{{ collaborator_polling_subdomain }}\.") {
         rewrite ^(.*)$ /burp-polling-rewrite$1 last;
     }
@@ -153,7 +145,7 @@ server {
 
     # Decide whether to proxy to Burp or serve static
     location @proxy_or_static {
-        # Check if this is a subdomain by seeing if host != base domain
+        # Check if this is a subdomain
         set $is_subdomain 0;
         if ($host != "{{ collaborator_domain }}") {
             set $is_subdomain 1;

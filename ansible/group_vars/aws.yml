@@ -1,5 +1,5 @@
 ---
-# Certificate mode: selfsigned, letsencrypt-route53, letsencrypt-namecheap, letsencrypt-manual
+# Certificate mode - only self-signed is actively supported
 cert_mode: selfsigned
 
 # Domain configuration
@@ -37,7 +37,7 @@ burp_metrics_whitelist:
 public_http_port: 80
 public_https_port: 443
 
-# SSL/TLS certificate configuration
+# SSL/TLS certificate configuration (self-signed)
 ssl_cert_dir: /etc/ssl/burp
 ssl_cert_file: "{{ ssl_cert_dir }}/burp-cert.pem"
 ssl_key_file: "{{ ssl_cert_dir }}/burp-key.pem"
@@ -49,24 +49,6 @@ ssl_locality: City
 ssl_organization: BurpCollaborator
 ssl_organizational_unit: Security
 ssl_common_name: "{{ collaborator_domain }}"
-
-# Let's Encrypt configuration
-letsencrypt_email: your-email@example.com  # CHANGE THIS
-letsencrypt_staging: false  # Set to true for testing to avoid rate limits
-
-# AWS Route53 configuration (when using cert_mode: letsencrypt-route53)
-aws_region: "{{ ansible_ec2_placement_region | default('us-east-1') }}"
-# AWS credentials - prefer IAM roles, but can use keys if needed
-# aws_access_key_id: "{{ vault_aws_access_key_id | default(omit) }}"
-# aws_secret_access_key: "{{ vault_aws_secret_access_key | default(omit) }}"
-
-# Namecheap configuration (when using cert_mode: letsencrypt-namecheap)
-# Store these in ansible-vault for security
-namecheap_username: "{{ vault_namecheap_username | default('') }}"
-namecheap_api_key: "{{ vault_namecheap_api_key | default('') }}"
-namecheap_client_ip: "{{ inventory_hostname }}"
-namecheap_api_endpoint: "https://api.namecheap.com/xml.response"
-namecheap_propagation_seconds: 120
 
 # Nginx configuration
 nginx_user: www-data
